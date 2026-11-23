@@ -1,0 +1,28 @@
+# Hub and station addresses for gen_config.py.
+# number is the FMU substation and the config id (station1 .. station10).
+# On station host k, set OPCUA_CONFIG=stationk.
+
+hub_ip: 192.168.0.100
+hub_http_port: 8080
+
+stations:
+  - number: 1
+    ip: 192.168.0.101
+  - number: 2
+    ip: 192.168.0.102
+  - number: 3
+    ip: 192.168.0.103
+  - number: 4
+    ip: 192.168.0.104
+  - number: 5
+    ip: 192.168.0.105
+  - number: 6
+    ip: 192.168.0.106
+  - number: 7
+    ip: 192.168.0.107
+  - number: 8
+    ip: 192.168.0.108
+  - number: 9
+    ip: 192.168.0.109
+  - number: 10
+    ip: 192.168.0.110

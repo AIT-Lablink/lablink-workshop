@@ -5,13 +5,17 @@ All signal routing is defined once in ROUTES. The datapoint bridge config, the
 plotter inputs, the Universal API channels and the OPC UA client nodes are all
 derived from it, so they cannot drift apart.
 
+The hub address and one IP per substation come from network.yaml. Station
+number k is FMU substation k and config id stationk. Each station host sets
+OPCUA_CONFIG to that id.
+
 The database is rebuilt from scratch (old rows are removed), and it is
 rewritten in place, so a running config server keeps its file handle and
 serves the new rows. Restart the Lablink clients afterwards so they reload.
 
 Usage:
-    python3 gen_config.py --hub-ip 10.0.0.10 --station-ip 10.0.0.20
-    python3 gen_config.py --hub-ip 10.0.0.10 --station-ip 10.0.0.20 --dump-dir out/
+    python3 gen_config.py
+    python3 gen_config.py --input network.yaml --dump-dir out/
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ MQTT_PORT = 1883
 
 # Config IDs. The client images append their default ID to LLCONFIG, so the
 # lablink-* names must stay as they are. The plotters get theirs via PLOT_CONFIG.
-# The station OPC UA client sets OPCUA_CONFIG=station1 instead of the image default.
+# Each station OPC UA client sets OPCUA_CONFIG=station<k> instead of the image default.
 ID_LOG4J = "ait.all.log4j2"
 ID_PROPS_HUB = "ait.annex.simpledh.llproperties"
 ID_PROPS_STATION = "ait.annex.simpledh.llproperties.station"
@@ -41,7 +45,6 @@ ID_SYNC = "ait.annex.simpledh.sync-host.properties"
 ID_FMU = "lablink-fmusim.config"
 ID_DPB = "lablink-dpbridge.config"
 ID_UAPI = "lablink-universalapiclient.config"
-ID_OPCUA = "station1"
 ID_PLOT = "ait.annex.simpledh.plotter.{}.config"
 
 # --------------------------------------------------------------------------
@@ -49,7 +52,6 @@ ID_PLOT = "ait.annex.simpledh.plotter.{}.config"
 # --------------------------------------------------------------------------
 FMU = "NetworkFMU"
 UAPI = "UniversalAPIClient"
-OPCUA = "OpcUaClient"
 PLOT_TSUPPLY = "PlotterTSupply"
 PLOT_MFLOW = "PlotterMSupply"
 PLOT_TSUB = "PlotterTSub"
@@ -57,18 +59,27 @@ PLOT_TSUB = "PlotterTSub"
 PREFIX = {
     FMU: "fmu",
     UAPI: "uapi",
-    OPCUA: "opcua",
     PLOT_TSUPPLY: "plot",
     PLOT_MFLOW: "plot",
     PLOT_TSUB: "plot",
 }
-STATION_CLIENTS = {OPCUA}
 
 # --------------------------------------------------------------------------
-# FMU interface (NetworkFMU_nSub2.fmu): 2 pipes with 4 nodes, 2 substations.
+# FMU interface. SUBSTATIONS is the only topology knob: one pipe section per
+# substation. NODES is the temperature points of a 3-segment pipe. The export
+# always exposes QLoa1..QLoa10; at SUBSTATIONS == 10 every one of them is routed.
 # --------------------------------------------------------------------------
-PIPES, NODES, SUBSTATIONS = 2, 4, 2
-LOAD_INPUTS = 10  # the FMU exposes QLoa1..QLoa10; only the first SUBSTATIONS matter
+SUBSTATIONS = 10
+PIPES = SUBSTATIONS
+NODES = 4
+LOAD_INPUTS = 10
+
+
+def station_client(k: int) -> str:
+    return f"OpcUaClient{k}"
+
+
+STATION_CLIENTS = {station_client(k) for k in range(1, SUBSTATIONS + 1)}
 
 def _fmu_outputs() -> dict[str, str]:
     out: dict[str, str] = {}
@@ -100,7 +111,7 @@ class Route:
     unit: str
 
 
-def build_routes(opcua_substation: int) -> list[Route]:
+def build_routes() -> list[Route]:
     """The single source of truth for all signal routing."""
     r: list[Route] = []
 
@@ -115,19 +126,27 @@ def build_routes(opcua_substation: int) -> list[Route]:
     # FMU -> Universal API (every FMU output is visible in the network display)
     r += [Route(FMU, name, UAPI, name, unit) for name, unit in FMU_OUTPUTS.items()]
 
-    # FMU substation n -> station OPC UA server (hub -> station)
-    s = opcua_substation
-    r += [Route(FMU, f"{name}{s}", OPCUA, name, unit) for name, unit in OPCUA_TO_SERVER.items()]
-
-    # Station load setpoint -> FMU load input and display (station -> hub)
-    r.append(Route(OPCUA, "QLoa", FMU, f"QLoa{s}", "W"))
-    r.append(Route(OPCUA, "QLoa", UAPI, f"QLoa{s}", "W"))
+    for s in range(1, SUBSTATIONS + 1):
+        client = station_client(s)
+        # FMU substation s -> station OPC UA server (hub -> station)
+        r += [Route(FMU, f"{name}{s}", client, name, unit) for name, unit in OPCUA_TO_SERVER.items()]
+        # Station load setpoint -> FMU load input and display (station -> hub)
+        r.append(Route(client, "QLoa", FMU, f"QLoa{s}", "W"))
+        r.append(Route(client, "QLoa", UAPI, f"QLoa{s}", "W"))
     return r
 
 
 def dp_id(client: str, dp: str, is_fmu_input: bool = False) -> str:
     # FMU inputs get their own prefix so they can never collide with outputs.
-    prefix = "fmu-in" if is_fmu_input else PREFIX[client]
+    # Each station client gets its own prefix so the ten QLoa values stay distinct.
+    if is_fmu_input:
+        prefix = "fmu-in"
+    elif client in PREFIX:
+        prefix = PREFIX[client]
+    elif client in STATION_CLIENTS:
+        prefix = "opcua" + client[len("OpcUaClient"):]
+    else:
+        sys.exit(f"No datapoint prefix for client {client}")
     return f"{prefix}-{dp}"
 
 
@@ -140,10 +159,10 @@ def validate(routes: list[Route]) -> None:
             errors.append(f"unknown FMU output {x.src_dp}")
         if x.dst_client == FMU and x.dst_dp not in FMU_INPUTS:
             errors.append(f"unknown FMU input {x.dst_dp}")
-        if x.src_client == OPCUA and x.src_dp not in OPCUA_FROM_SERVER:
-            errors.append(f"unknown OPC UA output {x.src_dp}")
-        if x.dst_client == OPCUA and x.dst_dp not in OPCUA_TO_SERVER:
-            errors.append(f"unknown OPC UA input {x.dst_dp}")
+        if x.src_client in STATION_CLIENTS and x.src_dp not in OPCUA_FROM_SERVER:
+            errors.append(f"unknown OPC UA output {x.src_client}/{x.src_dp}")
+        if x.dst_client in STATION_CLIENTS and x.dst_dp not in OPCUA_TO_SERVER:
+            errors.append(f"unknown OPC UA input {x.dst_client}/{x.dst_dp}")
     for name in FMU_INPUTS:
         if (FMU, name) not in dests and name not in FMU_INITIAL:
             errors.append(f"FMU input {name} is neither routed nor initialised")
@@ -222,7 +241,7 @@ def fmu_config(urls: Urls) -> dict:
             "IntegratorType": "bdf",
             "LoggingOn": False,
             "ModelTimeScaleFactor": 90,
-            "URI": "fmusim:NetworkFMU_nSub2.fmu",
+            "URI": f"fmusim:NetworkFMU_nSub{SUBSTATIONS}.fmu",
         },
         "Input": [var(n, u) for n, u in FMU_INPUTS.items()],
         "Output": [var(n, u) for n, u in FMU_OUTPUTS.items()],
@@ -310,14 +329,17 @@ def uapi_config(urls: Urls, routes: list[Route]) -> dict:
     }
 
 
-def opcua_config(urls: Urls, routes: list[Route], endpoint: str) -> dict:
+def opcua_config(urls: Urls, routes: list[Route], substation: int, endpoint: str) -> dict:
+    client = station_client(substation)
     node = lambda n, u: {"DataType": "double", "Name": n, "NodeIdString": f"SimpleDH/{n}", "Unit": u}
-    inputs = sorted({(x.dst_dp, x.unit) for x in routes if x.dst_client == OPCUA})
-    outputs = sorted({(x.src_dp, x.unit) for x in routes if x.src_client == OPCUA})
+    inputs = sorted({(x.dst_dp, x.unit) for x in routes if x.dst_client == client})
+    outputs = sorted({(x.src_dp, x.unit) for x in routes if x.src_client == client})
     return {
-        "Client": client_block(urls, OPCUA, "Station link: substation values and load setpoint via OPC UA."),
+        "Client": client_block(
+            urls, client, f"Station {substation} link: substation values and load setpoint via OPC UA."
+        ),
         "Config-OPC-UA": {
-            "ClientURI": "urn:lablink:clients:opcuaclient:simpledh",
+            "ClientURI": f"urn:lablink:clients:opcuaclient:simpledh:station{substation}",
             "DefaulSamplingInterval_ms": 1000,  # sic: Lablink's key name
             "EndpointURL": endpoint,
             "NamespaceURI": "urn:lablink:simpledh",
@@ -327,21 +349,27 @@ def opcua_config(urls: Urls, routes: list[Route], endpoint: str) -> dict:
     }
 
 
-def build_rows(hub_ip: str, station_ip: str, opcua_substation: int, opcua_endpoint: str | None,
-               hub_http_port: int = HUB_HTTP_PORT):
-    routes = build_routes(opcua_substation)
+def build_rows(hub_ip: str, stations: dict[int, str], hub_http_port: int = HUB_HTTP_PORT):
+    routes = build_routes()
     validate(routes)
     urls = Urls(hub_ip, hub_http_port)
-    endpoint = opcua_endpoint or f"opc.tcp://{station_ip}:12345/simpledh"
+    station_ips = ", ".join(stations[k] for k in range(1, SUBSTATIONS + 1))
     rows = [
         (ID_LOG4J, LOG4J, "Default client logger configuration (info)"),
         (ID_PROPS_HUB, ll_properties("mqtt"), "Lablink connection properties (hub clients)"),
-        (ID_PROPS_STATION, ll_properties(hub_ip), f"Lablink connection properties (station {station_ip})"),
+        (ID_PROPS_STATION, ll_properties(hub_ip), f"Lablink connection properties (stations, broker {hub_ip})"),
         (ID_SYNC, "# dummy configuration\n", "Sync host properties (unused by this asynchronous run)"),
         (ID_FMU, fmu_config(urls), "SimpleDH network FMU simulator"),
-        (ID_DPB, dpb_config(urls, routes), f"Datapoint bridge, hub {hub_ip} <-> station {station_ip}"),
+        (ID_DPB, dpb_config(urls, routes), f"Datapoint bridge, hub {hub_ip} <-> stations {station_ips}"),
         (ID_UAPI, uapi_config(urls, routes), "Universal API client for SimpleDH FMU outputs"),
-        (ID_OPCUA, opcua_config(urls, routes, endpoint), f"OPC UA client on station {station_ip}"),
+    ]
+    rows += [
+        (
+            f"station{k}",
+            opcua_config(urls, routes, k, f"opc.tcp://{stations[k]}:12345/simpledh"),
+            f"OPC UA client on station {stations[k]} (substation {k})",
+        )
+        for k in range(1, SUBSTATIONS + 1)
     ]
     rows += [
         (ID_PLOT.format(k), plotter_config(urls, routes, k), f"Plotter: {PLOTTERS[k][2]}")
@@ -378,30 +406,72 @@ def write_db(path: Path, rows) -> None:
         con.close()
 
 
-def ip(value: str) -> str:
+def parse_ip(value, label: str) -> str:
     try:
-        return str(ipaddress.ip_address(value))
+        return str(ipaddress.ip_address(str(value)))
     except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e)) from e
+        sys.exit(f"{label}: {e}")
+
+
+def load_network(path: Path) -> tuple[str, int, dict[int, str]]:
+    """Hub address and station number -> IP. Numbers must be exactly 1..SUBSTATIONS."""
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("PyYAML is required: pip install pyyaml")
+    if not path.is_file():
+        sys.exit(f"Network file not found: {path}")
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as e:
+        sys.exit(f"{path}: {e}")
+    if not isinstance(data, dict):
+        sys.exit(f"{path}: expected a mapping with hub_ip and stations")
+    if "hub_ip" not in data:
+        sys.exit(f"{path}: missing hub_ip")
+    hub_ip = parse_ip(data["hub_ip"], f"{path}: hub_ip")
+    port = data.get("hub_http_port", HUB_HTTP_PORT)
+    if type(port) is not int or port < 1 or port > 65535:
+        sys.exit(f"{path}: hub_http_port must be an integer from 1 to 65535")
+    raw = data.get("stations")
+    if not isinstance(raw, list):
+        sys.exit(f"{path}: stations must be a list")
+
+    stations: dict[int, str] = {}
+    for i, row in enumerate(raw, start=1):
+        if not isinstance(row, dict) or "number" not in row or "ip" not in row:
+            sys.exit(f"{path}: stations[{i}] needs number and ip")
+        number = row["number"]
+        if type(number) is not int:
+            sys.exit(f"{path}: stations[{i}].number must be an integer")
+        if number in stations:
+            sys.exit(f"{path}: duplicate station number {number}")
+        stations[number] = parse_ip(row["ip"], f"{path}: station {number}")
+
+    expected = set(range(1, SUBSTATIONS + 1))
+    missing = expected - stations.keys()
+    extra = stations.keys() - expected
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append("missing " + ", ".join(str(n) for n in sorted(missing)))
+        if extra:
+            parts.append("unknown " + ", ".join(str(n) for n in sorted(extra)))
+        sys.exit(f"{path}: station numbers must be 1..{SUBSTATIONS} exactly: " + "; ".join(parts))
+    return hub_ip, port, stations
 
 
 def main() -> None:
     here = Path(__file__).resolve().parent
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--hub-ip", type=ip, required=True, help="IP of the hub host (MQTT, config server)")
-    ap.add_argument("--station-ip", type=ip, required=True, help="IP of the station host (OPC UA substation)")
-    ap.add_argument("--hub-http-port", type=int, default=HUB_HTTP_PORT,
-                    help=f"published port of the hub reverse proxy (default {HUB_HTTP_PORT})")
+    ap.add_argument("--input", type=Path, default=here / "network.yaml",
+                    help="YAML file with hub_ip and stations (default: network.yaml beside this script)")
     ap.add_argument("--db", type=Path, default=here / "config" / "hub-config.db")
-    ap.add_argument("--opcua-substation", type=int, default=1, choices=range(1, SUBSTATIONS + 1),
-                    help="FMU substation emulated by the station (default 1)")
-    ap.add_argument("--opcua-endpoint", help="override the OPC UA endpoint URL "
-                    "(default: opc.tcp://<station-ip>:12345/simpledh)")
     ap.add_argument("--dump-dir", type=Path, help="also write every config as a file for review")
     args = ap.parse_args()
 
-    routes, rows = build_rows(args.hub_ip, args.station_ip, args.opcua_substation, args.opcua_endpoint,
-                              args.hub_http_port)
+    hub_ip, hub_http_port, stations = load_network(args.input)
+    routes, rows = build_rows(hub_ip, stations, hub_http_port)
     write_db(args.db, rows)
 
     if args.dump_dir:
