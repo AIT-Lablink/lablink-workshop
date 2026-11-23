@@ -1,25 +1,26 @@
 # SimpleDH Lablink: hub / station split
 
-```
-hub/                          station/
-  docker-compose.yml            docker-compose.yml
-  .env.example                  .env.example
-  gen_config.py
-  config/                       (needs ../display/substation)
-    mosquitto.conf
-    nginx.conf.template
-    index.html, styles.css
-    simpledh-config.db  <- generated
-```
-
 ## Hub host
 
+The number of substations is configured via `SUBSTATIONS` in `gen_config.py` and `network-display/app.js` (needs rebuild).
+
+In directoy `lablink/hub` edit `network.yaml`, which lists the hub address and one IP per substation.
+Station number k is FMU substation k.
+On that station host, set `OPCUA_CONFIG=stationk` so the client loads its own endpoint and client name.
+The committed station compose uses `station1`.
+
+Then, in directoy `lablink/hub`:
 ```sh
-cd hub
-cp .env.example .env                       # set HUB_IP, STATION_IP
-python gen_config.py --hub-ip 192.168.10.10 --station-ip 192.168.10.20
+python gen_config.py
+docker compose build
 docker compose up -d
 docker compose --profile fmusim run --rm --no-deps fmusim
+```
+
+The last command opens a Lablink terminal to the FMU simulator.
+Change the DH network supply temperature with the following command:
+```sh
+svd TSupSet 358
 ```
 
 Open the firewall for 1883/tcp (MQTT) and 8080/tcp (reverse proxy) from the stations.
@@ -29,9 +30,10 @@ The web entry point is `http://HUB_IP:8080/`.
 
 ## Station host
 
+In directory `lablink/station`:
 ```sh
-cd station
-cp .env.example .env                       # set HUB_IP
+cp .env.example .env # set HUB_IP
+docker compose build
 docker compose up -d
 ```
 
