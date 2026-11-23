@@ -2,8 +2,9 @@
 # plotters, Universal API, network display and the web entry point.
 #
 # Before the first start:
-#   cp .env.example .env            # set HUB_IP and STATION_IP
-#   python3 tools/gen_config.py --hub-ip <HUB_IP> --station-ip <STATION_IP>
+#   cp .env.example .env            # set HUB_HTTP_PORT if it is not 8080
+#   edit network.yaml               # hub_ip, hub_http_port, station addresses
+#   python gen_config.py
 #
 # The station reaches this host on 1883 (MQTT) and 8080 (reverse proxy, which
 # serves the config server at /config/get). Port 10101 is not published.
@@ -118,7 +119,6 @@ services:
     image: nginx:alpine
     restart: unless-stopped
     environment:
-      STATION_IP: ${STATION_IP:?Set STATION_IP in .env}
       # Render the template to /etc/nginx/nginx.conf. Only variables that are
       # set in this environment are substituted, nginx's own $vars stay intact.
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
@@ -126,6 +126,7 @@ services:
       - ./config/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./config/index.html:/usr/share/nginx/html/index.html:ro
       - ./config/styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./config/logo.png:/usr/share/nginx/html/logo.png:ro
     ports:
       - "${HUB_HTTP_PORT:-8080}:80"
     depends_on:
