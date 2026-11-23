@@ -1,0 +1,45 @@
+# Station host: OPC UA substation server and the Lablink OPC UA client.
+#
+# The client loads its config from the hub's config server and connects to the
+# hub's MQTT broker (the address comes from the generated
+# ait.annex.simpledh.llproperties.station row). Configs are fetched through the
+# hub's reverse proxy (/config/get), so the hub must be reachable on
+# ${HUB_IP}:${HUB_HTTP_PORT} (default 8080) and ${HUB_IP}:1883.
+#
+#   cp .env.example .env            # set HUB_IP
+#   docker compose up -d
+
+services:
+  opcua-substation:
+    build: ./substation-display
+    image: lablink-workshop/opcua-substation
+    restart: unless-stopped
+    ports:
+      - "12345:12345"   # OPC UA (only needed for external OPC UA tools)
+      - "8091:80"       # substation web UI, also proxied by the hub at /station/
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('0.0.0.0', 12345), 2).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - station
+
+  opcua-client:
+    image: ait1/lablink-opcua-client:latest
+    # The hub is on another machine, so compose cannot wait for it; restart
+    # until the config server and broker answer.
+    restart: unless-stopped
+    environment:
+      LLCONFIG: http://${HUB_IP:-192.168.0.100}:${HUB_HTTP_PORT:-8080}/config/get?id=
+      OPCUA_CONFIG: station1
+    depends_on:
+      opcua-substation:
+        condition: service_healthy
+    networks:
+      - station
+
+networks:
+  station:
+    driver: bridge

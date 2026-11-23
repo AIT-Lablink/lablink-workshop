@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lablink Hands-on Tutorial</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="sweep" aria-hidden="true"></div>
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">District heating &middot; co-simulation</span>
+      <h1>Lablink Hands-on Tutorial</h1>
+    </div>
+    <p id="status">hub</p>
+  </header>
+
+  <main>
+    <div class="panel">
+      <div class="panel-meta" aria-hidden="true">
+        <span>HUB &middot; index</span>
+        <span>HTTP :8080</span>
+      </div>
+
+      <section aria-labelledby="hub-title">
+        <h2 id="hub-title">Hub</h2>
+        <ul class="links">
+          <li><a href="/config/"><span class="name">Configuration server</span><span class="path">/config/</span></a></li>
+          <li><a href="/plot/tsupply/"><span class="name">Supply temperature</span><span class="path">/plot/tsupply/</span></a></li>
+          <li><a href="/plot/mflow/"><span class="name">Supply mass flow</span><span class="path">/plot/mflow/</span></a></li>
+          <li><a href="/plot/tsub/"><span class="name">Substation temperature</span><span class="path">/plot/tsub/</span></a></li>
+          <li><a href="/network/"><span class="name">Network display</span><span class="path">/network/</span></a></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,0 +1,52 @@
+﻿// plotPipeTemperatures_v3.mos
+// One plot window, four stacked diagrams (layout as dymolaPlotPipeTemperatures.mos):
+//   101: all supply temperature points along the line
+//        pipSup[1].T[1..nSeg+1], then pipSup[i].T[2..nSeg+1] for i = 2..nSub
+//        (pipSup[i].T[1] is skipped for i > 1: same node as pipSup[i-1].T[nSeg+1])
+//   102: mass flow rate in each supply pipe section
+//   103: mass flow rate through each substation
+//   104: all return temperature points in flow direction (end of line -> plant)
+//        pipRet[i].T[1..nSeg+1] for i = nSub..1
+//        (all kept: pipRet[i].T[1] is after mixing with substation i's return,
+//         pipRet[i+1].T[nSeg+1] before)
+// Reads the Network variables directly, so it works for any nSub and nSeg.
+// Simulate first, then run this script.
+
+// ---- Settings -------------------------------------------------------------
+net  = "fmuMod.net.";  // path to the Network instance:
+                       //   "fmuMod.net." for FMU.NetworkFMUTest
+                       //   "net."        for Examples.ConstantLoads / LowLoadBypass
+nSub = 10;              // number of substations / pipe sections
+nSeg = 3;              // segments per pipe
+// ---------------------------------------------------------------------------
+
+nT = 1 + nSub*nSeg;    // number of distinct supply temperature points
+nR = nSub*(nSeg + 1);  // number of return temperature points
+
+// k = 1: inlet of the first pipe; k >= 2: segment ends 2..nSeg+1 of pipe 1..nSub
+ySup = {if k == 1 then net + "pipSup[1].T[1]"
+        else net + "pipSup[" + String(1 + div(k - 2, nSeg)) + "].T[" + String(2 + mod(k - 2, nSeg)) + "]"
+        for k in 1:nT};
+// k = 1..nR: pipe nSub - div(k-1, nSeg+1), point 1 + mod(k-1, nSeg+1)
+yRet = {net + "pipRet[" + String(nSub - div(k - 1, nSeg + 1)) + "].T[" + String(1 + mod(k - 1, nSeg + 1)) + "]"
+        for k in 1:nR};
+yPip = {net + "mSupPip_flow[" + String(i) + "]" for i in 1:nSub};
+ySub = {net + "mSub_flow[" + String(i) + "]" for i in 1:nSub};
+
+removePlots(false);
+
+createPlot(id=1, position={2, 3, 1179, 613},
+  y=ySup,
+  grid=true, timeUnit="s", displayUnits={"degC" for k in 1:nT});
+
+createPlot(id=1, position={2, 3, 1179, 613},
+  y=yPip,
+  grid=true, subPlot=102, timeUnit="s", displayUnits={"kg/s" for i in 1:nSub});
+
+createPlot(id=1, position={2, 3, 1179, 613},
+  y=ySub,
+  grid=true, subPlot=103, timeUnit="s", displayUnits={"kg/s" for i in 1:nSub});
+
+createPlot(id=1, position={2, 3, 1179, 613},
+  y=yRet,
+  grid=true, subPlot=104, timeUnit="s", displayUnits={"degC" for k in 1:nR});

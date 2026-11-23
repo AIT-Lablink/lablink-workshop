@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Substation display</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="sweep" aria-hidden="true"></div>
+
+  <!-- shared instrument parts, referenced by every dial -->
+  <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <radialGradient id="bezel" cx="0.35" cy="0.3" r="0.8">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.55" stop-color="#c9d3dc"/>
+        <stop offset="1" stop-color="#8496a8"/>
+      </radialGradient>
+      <radialGradient id="face" cx="0.5" cy="0.4" r="0.65">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="0.85" stop-color="#f3f6f9"/>
+        <stop offset="1" stop-color="#e2e8ee"/>
+      </radialGradient>
+      <linearGradient id="band-flow" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="180" y2="0">
+        <stop offset="0" stop-color="#1b7f3a"/>
+        <stop offset="1" stop-color="#d1242f"/>
+      </linearGradient>
+      <linearGradient id="band-supply" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="180" y2="0">
+        <stop offset="0" stop-color="#5a0000"/>
+        <stop offset="0.5" stop-color="#5a0000"/>
+        <stop offset="1" stop-color="#ff3333"/>
+      </linearGradient>
+      <linearGradient id="band-return" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="180" y2="0">
+        <stop offset="0" stop-color="#001466"/>
+        <stop offset="0.4" stop-color="#001466"/>
+        <stop offset="1" stop-color="#33aaff"/>
+      </linearGradient>
+      <g id="dial">
+        <circle class="bezel" cx="100" cy="96" r="91"/>
+        <circle class="face" cx="100" cy="96" r="84"/>
+        <g class="ticks">
+          <line class="major" x1="52.37" y1="123.50" x2="45.44" y2="127.50"/>
+          <line x1="43.89" y1="114.23" x2="40.08" y2="115.47"/>
+          <line x1="41.32" y1="102.17" x2="37.35" y2="102.59"/>
+          <line x1="41.32" y1="89.83" x2="37.35" y2="89.41"/>
+          <line x1="43.89" y1="77.77" x2="40.08" y2="76.53"/>
+          <line class="major" x1="52.37" y1="68.50" x2="45.44" y2="64.50"/>
+          <line x1="56.15" y1="56.52" x2="53.18" y2="53.84"/>
+          <line x1="65.32" y1="48.27" x2="62.97" y2="45.03"/>
+          <line x1="76.00" y1="42.10" x2="74.38" y2="38.45"/>
+          <line x1="87.73" y1="38.29" x2="86.90" y2="34.38"/>
+          <line class="major" x1="100.00" y1="41.00" x2="100.00" y2="33.00"/>
+          <line x1="112.27" y1="38.29" x2="113.10" y2="34.38"/>
+          <line x1="124.00" y1="42.10" x2="125.62" y2="38.45"/>
+          <line x1="134.68" y1="48.27" x2="137.03" y2="45.03"/>
+          <line x1="143.85" y1="56.52" x2="146.82" y2="53.84"/>
+          <line class="major" x1="147.63" y1="68.50" x2="154.56" y2="64.50"/>
+          <line x1="156.11" y1="77.77" x2="159.92" y2="76.53"/>
+          <line x1="158.68" y1="89.83" x2="162.65" y2="89.41"/>
+          <line x1="158.68" y1="102.17" x2="162.65" y2="102.59"/>
+          <line x1="156.11" y1="114.23" x2="159.92" y2="115.47"/>
+          <line class="major" x1="147.63" y1="123.50" x2="154.56" y2="127.50"/>
+        </g>
+        <rect class="lcd" x="60" y="77" width="80" height="29" rx="3"/>
+        <g class="screws">
+          <circle cx="100" cy="9" r="1.6"/>
+          <circle cx="100" cy="183" r="1.6"/>
+          <circle cx="13" cy="96" r="1.6"/>
+          <circle cx="187" cy="96" r="1.6"/>
+        </g>
+      </g>
+    </defs>
+  </svg>
+
+  <header>
+    <div class="brand">
+      <span class="eyebrow">District heating &middot; live co-simulation</span>
+    </div>
+    <p id="status">connecting</p>
+  </header>
+
+  <main>
+    <div class="panel">
+      <div class="panel-meta" aria-hidden="true">
+        <span>SUB &middot; instrument rack</span>
+        <span>3 sensors &middot; 1 setpoint</span>
+        <span>refresh 1&nbsp;Hz</span>
+      </div>
+
+      <figure class="schematic">
+        <svg viewBox="0 0 400 158" role="img" aria-labelledby="sch-title">
+          <title id="sch-title">Substation process schematic</title>
+          <defs>
+            <linearGradient id="hx-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop id="hx-grad-0" offset="0" stop-color="#b7c0c0"/>
+              <stop id="hx-grad-1" offset="1" stop-color="#b7c0c0"/>
+            </linearGradient>
+            <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fbfcfd"/>
+              <stop offset="0.08" stop-color="#eef2f6"/>
+              <stop offset="1" stop-color="#d9e1e8"/>
+            </linearGradient>
+            <linearGradient id="flange" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#eef2f6"/>
+              <stop offset="0.5" stop-color="#a9b7c4"/>
+              <stop offset="1" stop-color="#76889a"/>
+            </linearGradient>
+            <radialGradient id="probe" cx="0.4" cy="0.35" r="0.7">
+              <stop offset="0" stop-color="#ffffff"/>
+              <stop offset="0.6" stop-color="#c3ced9"/>
+              <stop offset="1" stop-color="#7f90a2"/>
+            </radialGradient>
+            <filter id="sch-glow" filterUnits="userSpaceOnUse" x="-10" y="0" width="420" height="158">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur"/>
+              <feComponentTransfer in="blur" result="soft"><feFuncA type="linear" slope="0.45"/></feComponentTransfer>
+              <feMerge><feMergeNode in="soft"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <pattern id="bench" width="4" height="4" patternUnits="userSpaceOnUse">
+              <path d="M 4 0 L 0 0 0 4" fill="none" stroke="#1f5d99" stroke-opacity="0.07" stroke-width="0.25"/>
+            </pattern>
+          </defs>
+
+          <rect x="0" y="0" width="400" height="158" fill="url(#bench)"/>
+
+          <!-- pipe jackets -->
+          <g class="jacket" fill="none" stroke-linejoin="round" aria-hidden="true">
+            <path class="jacket-outer" d="M 0,45 H 216 M 216,120 H 0 M 268,45 H 285 V 95 H 306 M 306,120 H 268"/>
+            <path class="jacket-bore" d="M 0,45 H 216 M 216,120 H 0 M 268,45 H 285 V 95 H 306 M 306,120 H 268"/>
+          </g>
+
+          <!-- primary medium: color = temperature, width = mass flow -->
+          <g fill="none" stroke-linecap="butt" filter="url(#sch-glow)">
+            <path id="sch-sup" d="M 0,45 H 216" stroke="#b7c0c0" stroke-width="3"><title></title></path>
+            <path id="sch-ret" d="M 216,120 H 0" stroke="#b7c0c0" stroke-width="3"><title></title></path>
+          </g>
+          <!-- secondary circuit (not instrumented) -->
+          <g class="secondary-fluid" fill="none" stroke-linejoin="round" aria-hidden="true">
+            <path d="M 268,45 H 285 V 95 H 306 M 306,120 H 268"/>
+          </g>
+
+          <g class="tracer" fill="none" aria-hidden="true">
+            <path class="sch-tracer" d="M 0,45 H 216"/>
+            <path class="sch-tracer" d="M 216,120 H 0"/>
+            <path class="sch-tracer" d="M 268,45 H 285 V 95 H 306"/>
+            <path class="sch-tracer" d="M 306,120 H 268"/>
+          </g>
+
+          <g class="pipe-label" aria-hidden="true">
+            <text x="3" y="60">SUPPLY &#9656;</text>
+            <text x="3" y="108">&#9666; RETURN</text>
+            <text x="293" y="58">SECONDARY</text>
+          </g>
+
+          <!-- plate heat exchanger -->
+          <g class="hx">
+            <rect class="frame" x="212" y="18" width="60" height="5" rx="1"/>
+            <rect class="frame" x="212" y="142" width="60" height="5" rx="1"/>
+            <rect class="housing" x="216" y="23" width="52" height="119" rx="1.5"/>
+            <rect id="sch-hx" class="hx-window" x="223" y="30" width="38" height="105" rx="1" fill="url(#hx-grad)"><title></title></rect>
+            <path class="plates" d="M 227,30 V 135 M 231,30 V 135 M 235,30 V 135 M 239,30 V 135 M 243,30 V 135 M 247,30 V 135 M 251,30 V 135 M 255,30 V 135 M 259,30 V 135"/>
+            <g class="flanges" fill="url(#flange)">
+              <rect x="213.5" y="38" width="3" height="14" rx="0.6"/>
+              <rect x="213.5" y="113" width="3" height="14" rx="0.6"/>
+              <rect x="267.5" y="38" width="3" height="14" rx="0.6"/>
+              <rect x="267.5" y="113" width="3" height="14" rx="0.6"/>
+            </g>
+            <text class="tag" x="242" y="155" text-anchor="middle">HEAT EXCHANGER</text>
+          </g>
+
+          <!-- building / load -->
+          <g class="flanges" fill="url(#flange)" aria-hidden="true">
+            <rect x="303.5" y="88" width="3" height="14" rx="0.6"/>
+            <rect x="303.5" y="113" width="3" height="14" rx="0.6"/>
+          </g>
+          <path id="sch-house" class="house" fill="#b7c0c0" d="M 306,134 V 88 L 343,62 380,88 V 134 Z"><title></title></path>
+          <text id="sch-house-value" class="house-load" x="343" y="116" text-anchor="middle" fill="#ffffff" font-size="12">&ndash;&ndash;</text>
+          <text class="tag" x="343" y="146" text-anchor="middle">BUILDING &middot; QLoa</text>
+
+          <!-- supply temperature probe -->
+          <g class="instrument">
+            <line class="stem" x1="50" y1="41" x2="50" y2="23"/>
+            <rect class="lcd" x="27" y="7" width="46" height="16" rx="1.5"/>
+            <text class="lcd-name" x="50" y="12" text-anchor="middle">TSupSub</text>
+            <text id="sch-tsup-value" class="lcd-value" x="50" y="20.3" text-anchor="middle">&ndash;&ndash;</text>
+            <circle class="probe-ring" cx="50" cy="45" r="4.8"/>
+            <circle id="sch-tsup-dot" class="probe-dot" cx="50" cy="45" r="3.2" fill="#b7c0c0"/>
+          </g>
+
+          <!-- flow meter -->
+          <g class="instrument">
+            <g class="flanges" fill="url(#flange)">
+              <rect x="93" y="38" width="2.6" height="14" rx="0.6"/>
+              <rect x="114.4" y="38" width="2.6" height="14" rx="0.6"/>
+            </g>
+            <line class="stem" x1="105" y1="35" x2="105" y2="23"/>
+            <rect class="lcd" x="82" y="7" width="46" height="16" rx="1.5"/>
+            <text class="lcd-name" x="105" y="12" text-anchor="middle">mSub</text>
+            <text id="sch-msub-value" class="lcd-value" x="105" y="20.3" text-anchor="middle">&ndash;&ndash;</text>
+            <circle class="meter-body" cx="105" cy="45" r="9.6"/>
+            <circle class="meter-face" cx="105" cy="45" r="7.4"/>
+            <g id="sch-impeller" class="impeller">
+              <ellipse cx="105" cy="41.4" rx="1.5" ry="3.4"/>
+              <ellipse cx="105" cy="41.4" rx="1.5" ry="3.4" transform="rotate(120 105 45)"/>
+              <ellipse cx="105" cy="41.4" rx="1.5" ry="3.4" transform="rotate(240 105 45)"/>
+              <circle cx="105" cy="45" r="1.3"/>
+            </g>
+          </g>
+
+          <!-- control valve -->
+          <g class="instrument valve" aria-hidden="true">
+            <line class="stem" x1="160" y1="45" x2="160" y2="29"/>
+            <path class="actuator" d="M 151,29 Q 160,17 169,29 Z"/>
+            <polygon class="valve-body" points="151,38 160,45 151,52"/>
+            <polygon class="valve-body" points="169,38 160,45 169,52"/>
+            <text class="tag" x="160" y="61" text-anchor="middle">CONTROL VALVE</text>
+          </g>
+
+          <!-- return temperature probe -->
+          <g class="instrument">
+            <line class="stem" x1="50" y1="124" x2="50" y2="135"/>
+            <rect class="lcd" x="27" y="135" width="46" height="16" rx="1.5"/>
+            <text class="lcd-name" x="50" y="140" text-anchor="middle">TRetSub</text>
+            <text id="sch-tret-value" class="lcd-value" x="50" y="148.3" text-anchor="middle">&ndash;&ndash;</text>
+            <circle class="probe-ring" cx="50" cy="120" r="4.8"/>
+            <circle id="sch-tret-dot" class="probe-dot" cx="50" cy="120" r="3.2" fill="#b7c0c0"/>
+          </g>
+
+          <!-- derived values -->
+          <g class="derived">
+            <rect class="lcd" x="30" y="70" width="70" height="25" rx="1.5"/>
+            <text class="lcd-name" x="34" y="76.5">&Delta;T supply&ndash;return</text>
+            <circle id="sch-dt-dot" cx="95" cy="75.2" r="1.8" fill="#b7c0c0"/>
+            <text id="sch-dt-value" class="lcd-big" x="34" y="90">&ndash;&ndash;</text>
+
+            <rect class="lcd" x="106" y="70" width="102" height="25" rx="1.5"/>
+            <text class="lcd-name" x="110" y="76.5">Q = &#7745;&middot;c<tspan dy="0.8" font-size="2.6">p</tspan><tspan dy="-0.8">&middot;&Delta;T</tspan></text>
+            <text id="sch-q-value" class="lcd-big" x="110" y="90">&ndash;&ndash;</text>
+            <text id="sch-q-dev" class="lcd-name" x="204" y="90" text-anchor="end"></text>
+          </g>
+        </svg>
+      </figure>
+
+      <section class="gauges" aria-label="Substation measurements">
+        <figure>
+          <svg viewBox="0 2 200 188" role="img" aria-labelledby="mSub-title">
+            <title id="mSub-title">mSub</title>
+            <use href="#dial"/>
+            <path class="band band-flow" d="M 30.72 136.00 A 80 80 0 1 1 169.28 136.00"/>
+            <g class="scale-label" text-anchor="middle"><text x="60" y="122">0</text><text x="100" y="53">0.5</text><text x="140" y="122">1</text></g>
+            <path id="mSub-track" fill="none" stroke="#e6e8ea" stroke-width="12" stroke-linecap="round"></path>
+            <path id="mSub-arc" fill="none" stroke="#b7c0c0" stroke-width="12" stroke-linecap="round"></path>
+            <text id="mSub-value" x="100" y="99" text-anchor="middle"></text>
+            <text x="100" y="124" text-anchor="middle" class="unit">kg/s</text>
+            <text x="100" y="160" text-anchor="middle" class="dial-tag">FLOW</text>
+          </svg>
+          <figcaption><span class="desc">substation mass flow</span></figcaption>
+        </figure>
+        <figure>
+          <svg viewBox="0 2 200 188" role="img" aria-labelledby="TSupSub-title">
+            <title id="TSupSub-title">TSupSub</title>
+            <use href="#dial"/>
+            <path class="band band-supply" d="M 30.72 136.00 A 80 80 0 1 1 169.28 136.00"/>
+            <g class="scale-label" text-anchor="middle"><text x="60" y="122">0</text><text x="100" y="53">50</text><text x="140" y="122">100</text></g>
+            <path id="TSupSub-track" fill="none" stroke="#e6e8ea" stroke-width="12" stroke-linecap="round"></path>
+            <path id="TSupSub-arc" fill="none" stroke="#b7c0c0" stroke-width="12" stroke-linecap="round"></path>
+            <text id="TSupSub-value" x="100" y="99" text-anchor="middle"></text>
+            <text x="100" y="124" text-anchor="middle" class="unit">°C</text>
+            <text x="100" y="160" text-anchor="middle" class="dial-tag">SUPPLY</text>
+          </svg>
+          <figcaption><span class="desc">supply temperature</span></figcaption>
+        </figure>
+        <figure>
+          <svg viewBox="0 2 200 188" role="img" aria-labelledby="TRetSub-title">
+            <title id="TRetSub-title">TRetSub</title>
+            <use href="#dial"/>
+            <path class="band band-return" d="M 30.72 136.00 A 80 80 0 1 1 169.28 136.00"/>
+            <g class="scale-label" text-anchor="middle"><text x="60" y="122">0</text><text x="100" y="53">25</text><text x="140" y="122">50</text></g>
+            <path id="TRetSub-track" fill="none" stroke="#e6e8ea" stroke-width="12" stroke-linecap="round"></path>
+            <path id="TRetSub-arc" fill="none" stroke="#b7c0c0" stroke-width="12" stroke-linecap="round"></path>
+            <text id="TRetSub-value" x="100" y="99" text-anchor="middle"></text>
+            <text x="100" y="124" text-anchor="middle" class="unit">°C</text>
+            <text x="100" y="160" text-anchor="middle" class="dial-tag">RETURN</text>
+          </svg>
+          <figcaption><span class="desc">return temperature</span></figcaption>
+        </figure>
+      </section>
+
+      <form class="load" onsubmit="return false">
+        <div class="load-head">
+          <span class="desc">heat load setpoint</span>
+          <output id="qloa-label" for="qloa">80 kW</output>
+        </div>
+        <input id="qloa" type="range" min="20000" max="80000" step="1000" value="80000" aria-label="heat load setpoint">
+        <div class="load-ticks" aria-hidden="true"></div>
+        <div class="load-scale"><span>20 kW</span><span>40</span><span>60</span><span>80 kW</span></div>
+      </form>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

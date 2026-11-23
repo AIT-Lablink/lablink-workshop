@@ -1,0 +1,110 @@
+// exportNetworkFMU.mos
+// Exports SimpleDH.FMU.NetworkFMU as FMU for one or more values of nSub.
+// Only the variables relevant for nSub are kept in the FMU interface:
+//   parameters nSub, Q_nominal, tauQLoa, fraQLoa_max; inputs TSupSet, QLoa1..QLoa10;
+//   per substation TSupSub i, TRetSub i, mSub i;
+//   per pipe mSupPip i, TSupPip i_1..4, mRetPip i, TRetPip i_1..4   (i = 1..nSub)
+
+// ---- Settings -------------------------------------------------------------
+cd("C:/Development/lablink/annex-ts8/IDEAS");
+// openModel("C:/path/to/IDEAS/package.mo");      // if not loaded yet
+// openModel("C:/path/to/SimpleDH.mo");           // if not loaded yet
+
+// Finished FMUs are moved here. translateModelFMU writes them in the working directory.
+fmuDir = "fmu";
+Modelica.Utilities.Files.createDirectory(fmuDir);
+
+// nSubList = {2, 3, 4, 5, 6, 7, 8, 9, 10};  // one FMU per entry
+nSubList = {2};  // one FMU per entry
+QNom     = 100e3;         // design load of every substation [W]
+LSec     = 300;          // length of every pipe section [m]
+tauQ     = 300;          // default time constant of load input smoothing [s]
+fraQMax  = 1.1;            // default load input limit as multiple of QNom [1]
+fmiVer   = "2";
+fmiType  = "me";         // "me", "cs" or "all"
+// ---------------------------------------------------------------------------
+
+// ---- Compiler: Linux cross-compiler (WSL), FMU binaries for linux64 ---------
+// The current compiler is restored after the export loop. A Dymola script has no
+// try/catch and stops at the first failing command, so the loop below only uses
+// commands that report failure via return values.
+(oldCompiler, oldCompilerSettings) = GetDymolaCompiler();
+Modelica.Utilities.Streams.print("Current compiler: " + oldCompiler);
+SetDymolaCompiler("wsl", {"CCompiler=WSL", "WSLPath=C:/Windows/System32/wsl.exe", "DDE=0", "DLL=0"});
+Modelica.Utilities.Streams.print("Switched to compiler: wsl");
+
+// Declare loop variables up front ("model" is a Modelica keyword, hence modelStr).
+// The variable list changes length with nSub, so it is passed directly to
+// translateModelFMU instead of being stored in a variable.
+modelStr = "";
+fmuName  = "";
+result   = "";
+
+for nSub in nSubList loop
+  modelStr = "SimpleDH.FMU.NetworkFMU(nSub=" + String(nSub)
+           + ", Q_nominal=fill(" + String(QNom) + ", " + String(nSub) + ")"
+           + ", L=fill(" + String(LSec) + ", " + String(nSub) + ")"
+           + ", tauQLoa=" + String(tauQ)
+           + ", fraQLoa_max=" + String(fraQMax) + ")";
+  fmuName = "NetworkFMU_nSub" + String(nSub);
+  Modelica.Utilities.Streams.print("Exporting " + fmuName + " from " + modelStr);
+
+  result = translateModelFMU(modelStr, false, fmuName, fmiVer, fmiType, false, 0,
+    cat(1,
+      // parameters and all 10 load inputs (inputs > nSub exist but are ignored)
+      {"nSub", "Q_nominal", "tauQLoa", "fraQLoa_max", "TSupSet"},
+      {"QLoa" + String(i) for i in 1:10},
+      // per substation
+      {"TSupSub" + String(i) for i in 1:nSub},
+      {"TRetSub" + String(i) for i in 1:nSub},
+      {"mSub"    + String(i) for i in 1:nSub},
+      // per pipe, order m, T_1..T_4: k -> pipe 1 + div(k-1,5), slot mod(k-1,5)
+      {if mod(k - 1, 5) == 0
+         then "mSupPip" + String(1 + div(k - 1, 5))
+         else "TSupPip" + String(1 + div(k - 1, 5)) + "_" + String(mod(k - 1, 5))
+       for k in 1:5*nSub},
+      {if mod(k - 1, 5) == 0
+         then "mRetPip" + String(1 + div(k - 1, 5))
+         else "TRetPip" + String(1 + div(k - 1, 5)) + "_" + String(mod(k - 1, 5))
+       for k in 1:5*nSub}));
+
+  // translateModelFMU returns the FMU name without extension, or "" on failure.
+  if result == "" or not Modelica.Utilities.Files.exist(result + ".fmu") then
+    Modelica.Utilities.Streams.print("  -> export FAILED");
+  else
+    Modelica.Utilities.Files.move(result + ".fmu", fmuDir + "/" + fmuName + ".fmu", true);
+    Modelica.Utilities.Streams.print("  -> " + fmuDir + "/" + fmuName + ".fmu");
+  end if;
+end for;
+
+SetDymolaCompiler(oldCompiler, oldCompilerSettings);
+Modelica.Utilities.Streams.print("Restored compiler: " + oldCompiler);
+
+// ---- Clean-up of temporary build files in the working directory -------------
+// Files.remove aborts the script when a file is read-only. On Windows the FMU
+// build leaves .FMUOutput/documentation/index.html read-only ("Permission denied"),
+// and rmdir refuses those files too. Clear the attribute, then remove the
+// directory with the shell: system() returns the exit status and does not abort.
+fmuOutDirs = {"~FMUOutput", ".FMUOutput"};
+for i in 1:size(fmuOutDirs, 1) loop
+  if Modelica.Utilities.Files.exist(fmuOutDirs[i]) then
+    status = system("attrib -R /S /D \"" + fmuOutDirs[i] + "\" & rmdir /S /Q \"" + fmuOutDirs[i] + "\"");
+    if status <> 0 or Modelica.Utilities.Files.exist(fmuOutDirs[i]) then
+      Modelica.Utilities.Streams.print("  -> could not remove " + fmuOutDirs[i]);
+    end if;
+  end if;
+end for;
+// removeFile ignores missing files.
+tmpFiles = {"buildlog.txt", "dsin.txt", "dslog.txt", "dslog_dsbuildfmu.txt", "fmiModelIdentifier.h", "wslenv.sh", "_wslbuildfmu.sh"};
+for i in 1:size(tmpFiles, 1) loop
+  Modelica.Utilities.Files.removeFile(tmpFiles[i]);
+end for;
+// dsmodel* (dsmodel.c, dsmodelext<n>.c, dsmodel_fmuconf.h, ...): no wildcards in Modelica
+nFiles   = Modelica.Utilities.Internal.FileSystem.getNumberOfFiles(".");
+dirFiles = Modelica.Utilities.Internal.FileSystem.readDirectory(".", nFiles);
+for i in 1:nFiles loop
+  if Modelica.Utilities.Strings.find(dirFiles[i], "dsmodel") == 1 then
+    Modelica.Utilities.Files.removeFile(dirFiles[i]);
+  end if;
+end for;
+Modelica.Utilities.Streams.print("Removed temporary build files.");

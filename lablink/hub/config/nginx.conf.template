@@ -1,0 +1,135 @@
+worker_processes auto;
+error_log /var/log/nginx/error.log warn;
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    sendfile on;
+    keepalive_timeout 65;
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+
+    server {
+        listen 80;
+        # Keep redirects on the published host port. An absolute redirect
+        # would use the container port 80 and drop :8080.
+        absolute_redirect off;
+        # Resolve at request time so a stopped plotter does not stop nginx.
+        resolver 127.0.0.11 valid=10s ipv6=off;
+
+        location = /config {
+            return 301 /config/;
+        }
+
+        location = /plot/tsupply {
+            return 301 /plot/tsupply/;
+        }
+
+        location = /plot/mflow {
+            return 301 /plot/mflow/;
+        }
+
+        location = /plot/tsub {
+            return 301 /plot/tsub/;
+        }
+
+        location = /network {
+            return 301 /network/;
+        }
+
+        location /simpledh/ {
+            set $uapi uapi-client;
+            proxy_pass http://$uapi:7000;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+        }
+
+        # Config fetches by Lablink clients outside the hub (the station):
+        # /config/get?id=X -> lablink-config:10101/get?id=X. A plain pass-through
+        # without the UI's sub_filter, so configs are served byte for byte.
+        location = /config/get {
+            set $config lablink-config;
+            rewrite ^ /get break;   # keeps the query string
+            proxy_pass http://$config:10101;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+        }
+
+        location /config/ {
+            set $config lablink-config;
+            rewrite ^/config/(.*)$ /$1 break;
+            proxy_pass http://$config:10101;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header Accept-Encoding "";
+            proxy_redirect / /config/;
+            sub_filter 'src="/logo.png"' 'src="/config/logo.png"';
+            sub_filter_once off;
+            sub_filter_types *;
+        }
+
+        location /plot/tsupply/ {
+            set $plot_tsupply plotter-tsupply;
+            rewrite ^/plot/tsupply/(.*)$ /$1 break;
+            proxy_pass http://$plot_tsupply:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header Host $http_host;
+            proxy_buffering off;
+            proxy_read_timeout 3600s;
+            proxy_redirect / /plot/tsupply/;
+        }
+
+        location /plot/mflow/ {
+            set $plot_mflow plotter-mflow;
+            rewrite ^/plot/mflow/(.*)$ /$1 break;
+            proxy_pass http://$plot_mflow:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header Host $http_host;
+            proxy_buffering off;
+            proxy_read_timeout 3600s;
+            proxy_redirect / /plot/mflow/;
+        }
+
+        location /plot/tsub/ {
+            set $plot_tsub plotter-tsub;
+            rewrite ^/plot/tsub/(.*)$ /$1 break;
+            proxy_pass http://$plot_tsub:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header Host $http_host;
+            proxy_buffering off;
+            proxy_read_timeout 3600s;
+            proxy_redirect / /plot/tsub/;
+        }
+
+        location /network/ {
+            set $display network-display;
+            rewrite ^/network/(.*)$ /$1 break;
+            proxy_pass http://$display:80;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+        }
+
+        location = / {
+            root /usr/share/nginx/html;
+            try_files /index.html =404;
+        }
+
+        location = /styles.css {
+            root /usr/share/nginx/html;
+        }
+    }
+}

@@ -1,0 +1,15 @@
+# Generated config
+*.db
+
+# Environment variables
+*.env
+
+# Shell / Batch scripts
+*.sh
+*.cmd
+
+# Exclude packaging scripts
+lablink/station/package
+
+# Python cache
+__pycache__
