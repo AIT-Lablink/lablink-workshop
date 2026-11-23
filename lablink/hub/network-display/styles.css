@@ -158,13 +158,14 @@ main {
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 0;
   padding: 16px clamp(16px, 3vw, 40px) 28px;
 }
 
 .panel {
   position: relative;
   width: 100%;
-  max-width: 1400px;
+  min-width: 0;
   margin: 0;
   padding: 12px clamp(8px, 1.5vw, 20px) 14px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(247, 250, 252, 0.92));
@@ -211,13 +212,15 @@ main {
 
 /* ---------- laboratory network (SVG) ---------- */
 
+.diagram {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+
 svg {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: calc(100vh - 210px);
-  margin: 0 auto;
-  overflow: visible;
+  margin: 0;
 }
 
 svg text {
@@ -257,19 +260,19 @@ svg text {
 .housing {
   fill: url(#steel);
   stroke: #8d9fb1;
-  stroke-width: 0.45;
+  stroke-width: 1.2;
 }
 
 .housing-rim {
   stroke: #ffffff;
   stroke-opacity: 0.9;
-  stroke-width: 0.4;
+  stroke-width: 1;
 }
 
 .screws circle {
   fill: #b4c0cc;
   stroke: #6f7f8f;
-  stroke-width: 0.3;
+  stroke-width: 0.6;
 }
 
 .plant-icon {
@@ -277,13 +280,13 @@ svg text {
   fill-opacity: 0.4;
   stroke: #5b6d80;
   stroke-opacity: 0.5;
-  stroke-width: 0.4;
+  stroke-width: 1;
 }
 
 .house {
   stroke: #ffffff;
   stroke-opacity: 0.28;
-  stroke-width: 0.5;
+  stroke-width: 1;
   stroke-linejoin: round;
 }
 
@@ -296,32 +299,32 @@ svg text {
 }
 
 .tag text {
-  font-size: 3.3px;
-  letter-spacing: 0.15px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
   fill: var(--accent);
   fill-opacity: 0.9;
 }
 
 .pipe-label text {
-  font-size: 3.3px;
-  letter-spacing: 0.4px;
+  font-size: 12px;
+  letter-spacing: 0.6px;
   fill: var(--muted);
   text-anchor: middle;
 }
 
 .probe-label text {
-  font-size: 3.3px;
+  font-size: 11px;
   fill: #4a5c6e;
 }
 
 .probe-ring circle {
   stroke: #6f7f8f;
-  stroke-width: 0.5;
+  stroke-width: 1.2;
 }
 
 .probe circle {
   stroke: #ffffff;
-  stroke-width: 0.7;
+  stroke-width: 1.4;
 }
 
 /* ---------- legend ---------- */
@@ -406,10 +409,6 @@ svg text {
 
   .panel-meta span:nth-child(2) {
     display: none;
-  }
-
-  svg {
-    max-height: none;
   }
 }
 
