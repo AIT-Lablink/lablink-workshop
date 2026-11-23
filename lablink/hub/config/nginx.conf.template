@@ -52,6 +52,12 @@ http {
             proxy_set_header Host $http_host;
         }
 
+        # The published config server embeds the logo as a jar file: URL, which a
+        # browser will not load. The image is served here instead.
+        location = /logo.png {
+            root /usr/share/nginx/html;
+        }
+
         # Config fetches by Lablink clients outside the hub (the station):
         # /config/get?id=X -> lablink-config:10101/get?id=X. A plain pass-through
         # without the UI's sub_filter, so configs are served byte for byte.
@@ -71,7 +77,7 @@ http {
             proxy_set_header Host $http_host;
             proxy_set_header Accept-Encoding "";
             proxy_redirect / /config/;
-            sub_filter 'src="/logo.png"' 'src="/config/logo.png"';
+            sub_filter 'src="file:/app/lib/config-0.1.1-jar-with-dependencies.jar!/logo.png"' 'src="/logo.png"';
             sub_filter_once off;
             sub_filter_types *;
         }
