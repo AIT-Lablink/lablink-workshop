@@ -20,18 +20,18 @@
 \newcommand{\key}[1]{\tikz[baseline=(k.base)]\node[draw, rounded corners=2pt,
   inner sep=2pt, fill=soft, font=\ttfamily\small](k){#1};}
 
-\newcommand{\reportbox}[1]{%
+\newcommand{\reportbox}[2][]{%
   \begin{tikzpicture}
     \node[fill=warn!10, draw=warn!70, rounded corners=3pt, inner sep=6pt,
-          text width=0.9\linewidth, font=\small]
-      {\textcolor{warn}{\textbf{Report to the operator:}} #1};
+          text width=0.9\linewidth, font=\small, #1]
+      {\textcolor{warn}{\textbf{Report to the operator:}} #2};
   \end{tikzpicture}}
 
-\newcommand{\checkbox}[1]{%
+\newcommand{\checkbox}[2][]{%
   \begin{tikzpicture}
     \node[fill=ok!10, draw=ok!70, rounded corners=3pt, inner sep=6pt,
-          text width=0.9\linewidth, font=\small]
-      {\textcolor{ok}{\textbf{Check:}} #1};
+          text width=0.9\linewidth, font=\small, #1]
+      {\textcolor{ok}{\textbf{Check:}} #2};
   \end{tikzpicture}}
 
 \newcommand{\stepno}[1]{%
@@ -236,7 +236,8 @@
   In \ui{Images}, on \cmd{lablink-workshop/opcua-substation}, click \ui{Run}. Set:
   \vspace{0.4em}
   \begin{columns}[T]
-    \begin{column}{0.55\textwidth}
+    \begin{column}{0.50\textwidth}
+      \begin{minipage}[t][0.74\textheight]{\linewidth}
       \small
       \begin{tabular}{@{}ll@{}}
         \ui{Container name} & \cmd{opcua-substation} \\[3pt]
@@ -244,15 +245,21 @@
                             & host \cmd{12345} $\rightarrow$ container \cmd{12345} \\[3pt]
         \ui{Volumes}        & leave empty \\
       \end{tabular}
-    \end{column}
-    \begin{column}{0.42\textwidth}
-      \small
+
+      \vspace{1em}
       Add a second port row if the dialog shows only one.
       Set the host ports yourself.
+
+      \vfill
+      \checkbox[inner sep=3pt, font=\scriptsize, text width=\linewidth-6pt]{Click \ui{Run}. In \ui{Containers}, \cmd{opcua-substation} stays running.}
+      \end{minipage}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      {\setlength{\fboxsep}{0pt}\fcolorbox{gray!60}{white}{%
+        \includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{figures/run-opcua-substation.png}}}
     \end{column}
   \end{columns}
-  \vfill
-  \checkbox{Click \ui{Run}. In \ui{Containers}, \cmd{opcua-substation} stays running.}
 \end{frame}
 
 \begin{frame}{\stepno{9}\ Check the substation page}
@@ -268,26 +275,40 @@
 
 \begin{frame}{\stepno{10}\ Run the OPC UA client}
   In \ui{Images}, on \cmd{ait1/lablink-opcua-client}, click \ui{Run}. Set:
-  \vspace{0.3em}
-  \small
-  \begin{tabular}{@{}ll@{}}
-    \ui{Container name} & \cmd{opcua-client} \\
-    \ui{Ports}          & leave empty \\
-    \ui{Environment}    & \cmd{LLCONFIG} = \cmd{http://192.168.0.100:8080/config/get?id=} \\
-                        & \cmd{OPCUA\_CONFIG} = \emph{string from the operator} \\
-  \end{tabular}
+  \vspace{0.4em}
+  \begin{columns}[T]
+    \begin{column}{0.50\textwidth}
+      \begin{minipage}[t][0.74\textheight]{\linewidth}
+      \small
+      \begin{tabular}{@{}ll@{}}
+        \ui{Container name} & \cmd{opcua-client} \\[3pt]
+        \ui{Ports}          & leave empty \\[3pt]
+        \ui{Environment}    & \\
+      \end{tabular}\\[2pt]
+      \hspace*{1em}\cmd{LLCONFIG} =\\
+      \hspace*{2em}{\footnotesize\cmd{http://192.168.0.100:8080/config/get?id=}}\\[3pt]
+      \hspace*{1em}\cmd{OPCUA\_CONFIG} = \emph{string from the operator}
 
-  \vspace{0.5em}
-  \cmd{LLCONFIG} ends with \alert{\cmd{?id=}}. With a different hub address,
-  swap the address and keep \cmd{/config/get?id=}.
+      \vspace{0.6em}
+      \footnotesize
+      \cmd{LLCONFIG} ends with \alert{\cmd{?id=}}. With a different hub address,
+      swap the address and keep \cmd{/config/get?id=}.
 
-  \vspace{0.5em}
-  \checkbox{\cmd{opcua-client} stays running, and the dials on
-            \cmd{localhost:8091} show live values.}
+      \vfill
+      \checkbox[inner sep=3pt, font=\scriptsize, text width=\linewidth-6pt]{\cmd{opcua-client} stays running, and the dials on
+                \cmd{localhost:8091} show live values.}
 
-  \vspace{0.2em}
-  \reportbox{if \cmd{opcua-client} stops. When they say the hub is ready,
-             press the container's start button.}
+      \vspace{0.2em}
+      \reportbox[inner sep=3pt, font=\scriptsize, text width=\linewidth-6pt]{if \cmd{opcua-client} stops. When they say the hub is ready,
+                 press the container's start button.}
+      \end{minipage}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \centering
+      {\setlength{\fboxsep}{0pt}\fcolorbox{gray!60}{white}{%
+        \includegraphics[width=\linewidth,height=0.74\textheight,keepaspectratio]{figures/run-opcua-client.png}}}
+    \end{column}
+  \end{columns}
 \end{frame}
 
 % ================================================================ part 4
